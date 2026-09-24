@@ -1,0 +1,98 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+ENV/
+env/
+.ENV
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+trading_journal.db
+
+# Logs
+*.log
+backend.log
+frontend.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Firebase
+firebase-service-account.json
+service-account.json
+
+# Process IDs
+.backend.pid
+.frontend.pid
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Temporary files
+*.tmp
+*.temp
+test_upload.py
+
+# Firebase (if using local firebase)
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Next.js
+.next/
+out/
+
+# Production
+.vercel/
+.netlify/
+
+# Misc
+.cache/
+.parcel-cache/
