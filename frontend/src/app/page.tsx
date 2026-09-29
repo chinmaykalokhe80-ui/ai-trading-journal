@@ -6,6 +6,7 @@ import { TradeTable } from '@/components/TradeTable';
 import { TradeUploadModal } from '@/components/TradeUploadModal';
 import { ManualTradeModal } from '@/components/ManualTradeModal';
 import { AIPnLAnalyzer } from '@/components/AIPnLAnalyzer';
+import { formatSignedPnl, pnlTextClass } from '@/lib/pnlDisplay';
 import {
   TrendingUp,
   TrendingDown,
@@ -149,19 +150,12 @@ export default function DashboardPage() {
           {/* Net PnL */}
           <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 backdrop-blur-md">
             <div className="text-xs text-slate-400 font-medium mb-1">P&L</div>
-            <div
-              className={`text-xl font-bold font-mono ${
-                grossPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'
-              }`}
-            >
-              {grossPnL >= 0 ? '+' : ''}₹{grossPnL.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            <div className={`text-xl font-bold font-mono ${pnlTextClass(grossPnL)}`}>
+              {formatSignedPnl(grossPnL)}
             </div>
             <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
-              {grossPnL >= 0 ? (
-                <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-              ) : (
-                <TrendingDown className="w-3.5 h-3.5 text-rose-400" />
-              )}
+              {grossPnL > 0 && <TrendingUp className="w-3.5 h-3.5 text-emerald-300" />}
+              {grossPnL < 0 && <TrendingDown className="w-3.5 h-3.5 text-rose-300" />}
               Realized trading result
             </div>
           </div>

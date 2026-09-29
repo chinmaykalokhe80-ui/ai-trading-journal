@@ -94,8 +94,10 @@ cp .env.local.example .env.local
 This will:
 - Create the backend virtual environment if needed and install missing Python dependencies
 - Install frontend packages if `node_modules` is missing
-- Start the FastAPI backend on `http://localhost:8000`
-- Start the Next.js frontend on `http://localhost:3000`
+- Start the FastAPI backend on `http://127.0.0.1:8000`
+- Start the Next.js frontend on `http://127.0.0.1:3000`
+
+Keep the terminal running while using the app. Open `http://127.0.0.1:3000` in your browser, and press Ctrl+C in the launcher terminal to stop both servers. You can also run `./stop.sh` from another terminal.
 
 ### Manual Start
 
@@ -167,7 +169,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000/api
 
 Click **Analyze saved trades** for an assessment of all closed journal records, or upload a P&L CSV/Excel report for read-only analysis. Reviews show strengths, weaknesses, supporting numbers, and measurable practice goals. Local rules are the default; optional external reviewers are selected explicitly.
 
-Zerodha-style F&O P&L workbooks are supported directly, including exports with an incorrect worksheet dimension. The report shows contract-level realized P&L, buy/sell values, open positions, unrealized P&L, underlying and CE/PE breakdowns, broker-reported charges, other debits and credits, and checks against the statement summary. Contract rows can combine multiple executions, and a statement period does not supply trade dates; the review does not infer daily performance from it. Upload analysis does not add records to the journal.
+Zerodha-style F&O P&L workbooks are supported directly, including exports with an incorrect worksheet dimension. The report shows contract-level realized P&L, buy/sell values, open positions, unrealized P&L, underlying and CE/PE breakdowns, broker-reported charges and brokerage at source precision, other debits and credits, and checks against the statement summary. Contract rows can combine multiple executions, and a statement period does not supply trade dates; the review does not infer daily performance from it. Upload analysis does not add records to the journal.
 
 See [TRADE_COACH.md](TRADE_COACH.md) for methodology, book principles, free-tier providers, privacy, and setup. See [YOUR_TRADE_REVIEW.md](YOUR_TRADE_REVIEW.md) for the assessment of the saved records at implementation time.
 

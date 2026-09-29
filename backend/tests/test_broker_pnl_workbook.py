@@ -64,7 +64,8 @@ def test_broker_workbook_extracts_all_sections_without_counting_totals():
     assert statement['period'] == {'from': '2026-09-01', 'to': '2026-09-29'}
     assert statement['totals']['open_contract_rows'] == 1
     assert statement['totals']['unrealized_pnl'] == 7
-    assert statement['reported']['charges'] == 12.35
+    assert statement['reported']['charges'] == 12.345
+    assert statement['charges'] == [{'name': 'Brokerage - Z', 'amount': 12.345}]
     assert statement['reconciliation']['realized_pnl']['difference'] == 0
     assert statement['reconciliation']['charges']['difference'] == 0
     assert statement['adjustments'][0]['debit'] == 10

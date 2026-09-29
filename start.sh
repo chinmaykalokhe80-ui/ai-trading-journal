@@ -51,13 +51,17 @@ if ! command -v npm >/dev/null 2>&1; then
     echo "npm is required to start the frontend."
     exit 1
 fi
+if ! command -v node >/dev/null 2>&1; then
+    echo "Node.js is required to start the frontend."
+    exit 1
+fi
 
 if [ ! -d "$PROJECT_ROOT/frontend/node_modules/next" ]; then
     echo "Installing frontend dependencies..."
     (cd "$PROJECT_ROOT/frontend" && npm ci) || exit 1
 fi
 
-PYTHONPATH="$PROJECT_ROOT/backend" "$PYTHON_BIN" -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload > "$PROJECT_ROOT/backend.log" 2>&1 &
+PYTHONPATH="$PROJECT_ROOT/backend" "$PYTHON_BIN" -m uvicorn app.main:app --host 127.0.0.1 --port 8000 > "$PROJECT_ROOT/backend.log" 2>&1 < /dev/null &
 BACKEND_PID=$!
 echo "$BACKEND_PID" > "$PROJECT_ROOT/.backend.pid"
 
@@ -85,7 +89,7 @@ echo "Backend ready (PID: $BACKEND_PID, logs: backend.log)"
 # 2. Start Next.js Frontend
 echo "Starting Next.js Frontend on port 3000..."
 cd "$PROJECT_ROOT/frontend"
-npm run dev -- -p 3000 > "$PROJECT_ROOT/frontend.log" 2>&1 &
+NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://127.0.0.1:8000/api}" node node_modules/next/dist/bin/next dev --webpack -p 3000 -H 127.0.0.1 > "$PROJECT_ROOT/frontend.log" 2>&1 < /dev/null &
 FRONTEND_PID=$!
 echo "$FRONTEND_PID" > "$PROJECT_ROOT/.frontend.pid"
 
@@ -111,7 +115,28 @@ echo "Frontend ready (PID: $FRONTEND_PID, logs: frontend.log)"
 
 echo "============================================================"
 echo " Application startup complete!"
-echo " • Web Journal UI:   http://localhost:3000"
-echo " • Backend API Docs:  http://localhost:8000/docs"
+echo " • Web Journal UI:   http://127.0.0.1:3000"
+echo " • Backend API Docs:  http://127.0.0.1:8000/docs"
 echo " • To stop app:       ./stop.sh"
 echo "============================================================"
+echo "Keep this terminal open while using the app. Press Ctrl+C to stop it."
+
+trap '"$PROJECT_ROOT/stop.sh" >/dev/null' EXIT
+trap 'exit 0' HUP INT TERM
+while true; do
+    if [ ! -f "$PROJECT_ROOT/.backend.pid" ] && [ ! -f "$PROJECT_ROOT/.frontend.pid" ]; then
+        echo "Application stopped."
+        exit 0
+    fi
+    if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+        echo "Backend stopped unexpectedly. Recent log:"
+        tail -30 "$PROJECT_ROOT/backend.log"
+        exit 1
+    fi
+    if ! kill -0 "$FRONTEND_PID" 2>/dev/null; then
+        echo "Frontend stopped unexpectedly. Recent log:"
+        tail -30 "$PROJECT_ROOT/frontend.log"
+        exit 1
+    fi
+    sleep 1
+done

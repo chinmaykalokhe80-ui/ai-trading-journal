@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Trade, updateTrade } from '@/lib/api';
 import { ChevronDown, ChevronUp, Edit3, Tag, Smile, Layers } from 'lucide-react';
+import { formatSignedPnl, pnlBadgeClass, pnlRowClass } from '@/lib/pnlDisplay';
 
 interface Props {
   trades: Trade[];
@@ -99,12 +100,12 @@ export const TradeTable: React.FC<Props> = ({ trades, onRefresh }) => {
               sortedTrades.map((t) => {
                 const isEditing = editingId === t.id;
                 const isExpanded = expandedId === t.id;
-                const isProfit = t.gross_pnl >= 0;
+                const pnl = t.gross_pnl ?? 0;
                 const instName = t.legs?.[0]?.instrument || 'Instrument';
 
                 return (
                   <React.Fragment key={t.id}>
-                    <tr className="hover:bg-slate-800/40 transition-colors group">
+                    <tr className={`${pnlRowClass(pnl)} transition-colors group`}>
                       {/* Date / Time */}
                       <td className="py-4 px-4 whitespace-nowrap">
                         <div className="font-medium text-slate-200">
@@ -121,9 +122,9 @@ export const TradeTable: React.FC<Props> = ({ trades, onRefresh }) => {
                           {instName}
                           <span
                             className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold tracking-wide uppercase ${t.legs?.[0]?.segment === 'CE'
-                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
                                 : t.legs?.[0]?.segment === 'PE'
-                                  ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                                  ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30'
                                   : t.legs?.[0]?.segment === 'Futures'
                                     ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
                                     : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
@@ -177,11 +178,11 @@ export const TradeTable: React.FC<Props> = ({ trades, onRefresh }) => {
                         ) : (
                           <span
                             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border ${t.emotion_tag === 'Disciplined'
-                                ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60'
+                                ? 'bg-cyan-950/60 text-cyan-300 border-cyan-800/60'
                                 : t.emotion_tag === 'Confident'
-                                  ? 'bg-cyan-950/60 text-cyan-300 border-cyan-800/60'
+                                  ? 'bg-indigo-950/60 text-indigo-300 border-indigo-800/60'
                                   : t.emotion_tag === 'FOMO' || t.emotion_tag === 'Revenge'
-                                    ? 'bg-rose-950/60 text-rose-300 border-rose-800/60'
+                                    ? 'bg-amber-950/60 text-amber-300 border-amber-800/60'
                                     : 'bg-slate-800/60 text-slate-300 border-slate-700/60'
                               }`}
                           >
@@ -194,12 +195,9 @@ export const TradeTable: React.FC<Props> = ({ trades, onRefresh }) => {
                       {/* P&L */}
                       <td className="py-4 px-4 text-right">
                         <span
-                          className={`font-mono font-bold text-sm px-2.5 py-1 rounded-lg ${isProfit
-                              ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-500/30'
-                              : 'bg-rose-950/80 text-rose-400 border border-rose-500/30'
-                            }`}
+                          className={`font-mono font-bold text-sm px-2.5 py-1 rounded-lg ${pnlBadgeClass(pnl)}`}
                         >
-                          {isProfit ? '+' : ''}₹{t.gross_pnl?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          {formatSignedPnl(pnl)}
                         </span>
                       </td>
 
@@ -246,7 +244,7 @@ export const TradeTable: React.FC<Props> = ({ trades, onRefresh }) => {
                               <div className="space-y-1.5">
                                 {t.legs?.map((leg, idx) => (
                                   <div key={idx} className="flex items-center justify-between text-slate-300 bg-slate-950/60 p-2 rounded-lg font-mono">
-                                    <span className={leg.side === 'buy' ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                                    <span className={leg.side === 'buy' ? 'text-sky-300 font-bold' : 'text-violet-300 font-bold'}>
                                       {leg.side.toUpperCase()} {leg.quantity} @ ₹{leg.price}
                                     </span>
                                     <span className="text-slate-400 text-[11px]">{leg.instrument} ({leg.segment})</span>

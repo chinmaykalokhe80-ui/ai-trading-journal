@@ -199,14 +199,14 @@ def parse_broker_pnl_workbook(content):
             reported = {
                 'realized_pnl': rounded(amount(summary.get('realized p&l'), 'summary realized P&L')) if 'realized p&l' in summary else None,
                 'unrealized_pnl': rounded(amount(summary.get('unrealized p&l'), 'summary unrealized P&L')) if 'unrealized p&l' in summary else None,
-                'charges': rounded(amount(summary.get('charges'), 'summary charges')) if 'charges' in summary else None,
-                'other_credit_debit': rounded(amount(summary.get('other credit & debit'), 'summary other credit/debit')) if 'other credit & debit' in summary else None,
+                'charges': amount(summary.get('charges'), 'summary charges') if 'charges' in summary else None,
+                'other_credit_debit': amount(summary.get('other credit & debit'), 'summary other credit/debit') if 'other credit & debit' in summary else None,
             }
             totals, breakdowns = contract_insights(contracts)
             realized_sum = totals['realized_pnl']
             unrealized_sum = totals['unrealized_pnl']
-            charge_sum = rounded(sum(item['amount'] for item in charges))
-            adjustment_sum = rounded(sum(item['credit'] - item['debit'] for item in adjustments))
+            charge_sum = round(sum(item['amount'] for item in charges), 6)
+            adjustment_sum = round(sum(item['credit'] - item['debit'] for item in adjustments), 6)
             comparisons = {
                 'realized_pnl': realized_sum, 'unrealized_pnl': unrealized_sum,
                 'charges': charge_sum if charges else None,
@@ -214,7 +214,7 @@ def parse_broker_pnl_workbook(content):
             }
             reconciliation = {
                 key: {'reported': value, 'detail_total': comparisons[key],
-                      'difference': rounded(value - comparisons[key]) if value is not None and comparisons[key] is not None else None}
+                      'difference': round(value - comparisons[key], 6) if value is not None and comparisons[key] is not None else None}
                 for key, value in reported.items()
             }
             statement = {
