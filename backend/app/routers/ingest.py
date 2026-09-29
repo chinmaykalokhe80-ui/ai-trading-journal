@@ -8,7 +8,6 @@ from app.database.sqlite_db import (
     TradeModel,
     LegModel,
     FillModel,
-    ChargesModel,
 )
 from app.database.firestore import save_trade_to_firestore
 from app.parsers.zerodha import ZerodhaConsoleParser
@@ -24,9 +23,9 @@ async def ingest_csv(
 ):
     """Uploads and ingests Zerodha Console Tradebook CSV, parses trades/legs/fills,
 
-    calculates Indian charges/taxes, saves to Firestore and mirrors into local SQLite cache.
+    calculates realized P&L, saves to Firestore and mirrors into local SQLite cache.
     """
-    if not file.filename.endswith(".csv"):
+    if not (file.filename or "").lower().endswith(".csv"):
         raise HTTPException(
             status_code=400, detail="Only CSV files are supported."
         )
@@ -40,6 +39,13 @@ async def ingest_csv(
         raise HTTPException(
             status_code=422, detail=f"Failed to parse CSV file: {str(e)}"
         )
+
+    # Reject partial overlap atomically rather than double-counting executions.
+    for pt in parsed_trades:
+        if db.get(TradeModel, pt.trade_id):
+            continue
+        if db.query(FillModel).filter(FillModel.fill_id.in_([f.fill_id for f in pt.fills])).first():
+            raise HTTPException(status_code=409, detail="This upload overlaps existing executions. Import a non-overlapping tradebook.")
 
     ingested_count = 0
 
@@ -85,25 +91,13 @@ async def ingest_csv(
                 fill_row = FillModel(
                     fill_id=fill.fill_id,
                     trade_id=pt.trade_id,
-                    leg_id=getattr(fill, "leg_id", None),
+                    leg_id=next(leg.leg_id for leg in pt.legs if fill in leg.fills),
                     quantity=fill.quantity,
                     price=fill.price,
                     fill_time=fill.fill_time,
                 )
                 db.add(fill_row)
 
-            charges_row = ChargesModel(
-                trade_id=pt.trade_id,
-                brokerage=round(pt.total_charges * 0.2, 2),  # Estimated split
-                stt=round(pt.total_charges * 0.5, 2),
-                exchange_txn_charge=round(pt.total_charges * 0.15, 2),
-                gst=round(pt.total_charges * 0.1, 2),
-                sebi_charges=round(pt.total_charges * 0.02, 2),
-                stamp_duty=round(pt.total_charges * 0.03, 2),
-                dp_charges=0.0,
-                total_charges=pt.total_charges,
-            )
-            db.add(charges_row)
             ingested_count += 1
 
             # 2. Mirror to Firestore ledger

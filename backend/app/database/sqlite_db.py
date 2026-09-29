@@ -14,7 +14,9 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
-DB_PATH = os.getenv("SQLITE_DB_PATH", "trading_journal.db")
+from app.config import settings
+
+DB_PATH = settings.SQLITE_DB_PATH
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 engine = create_engine(

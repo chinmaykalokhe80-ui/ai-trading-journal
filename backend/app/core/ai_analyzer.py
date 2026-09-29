@@ -2,13 +2,12 @@ import os
 import io
 import json
 import logging
+import math
 import pandas as pd
 from typing import Dict, Any, Optional
-import requests
 
 logger = logging.getLogger("ai_analyzer")
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 
 def analyze_pnl_dataframe(df: pd.DataFrame) -> Dict[str, Any]:
@@ -32,7 +31,7 @@ def analyze_pnl_dataframe(df: pd.DataFrame) -> Dict[str, Any]:
 
     # Filter out summary 'Total' rows often found at the bottom of broker exports
     if len(df.columns) > 0:
-        df = df[~df.iloc[:, 0].astype(str).str.contains("Total", case=False, na=False)]
+        df = df[~df.iloc[:, 0].astype(str).str.strip().str.lower().isin(["total", "grand total", "subtotal"])]
 
     # Normalize column headers
     df.columns = [
@@ -49,41 +48,40 @@ def analyze_pnl_dataframe(df: pd.DataFrame) -> Dict[str, Any]:
         return None
         
     col_map = {
-        "pnl": find_col(["realized_p&l", "realized", "net_pnl", "net_profit", "pnl", "profit"], exclude=["pct", "%", "unrealized"]),
+        "pnl": find_col(["realized_p&l", "realized", "net_pnl", "net_profit", "pnl", "p&l", "profit"], exclude=["pct", "%", "unrealized"]),
         "pnl_pct": find_col(["realized_p&l_pct", "pct", "%"], exclude=["unrealized"]),
         "symbol": find_col(["symbol", "tradingsymbol", "scrip"]),
         "buy_val": find_col(["buy_value", "buy_amount"]),
         "sell_val": find_col(["sell_value", "sell_amount"]),
         "qty": find_col(["quantity", "qty"], exclude=["open"]),
-        "date": find_col(["date", "time", "day"])
+        "date": find_col(["date", "time", "day"]),
+        "strategy": find_col(["strategy", "setup"]),
+        "emotion": find_col(["emotion"]),
+        "notes": find_col(["notes", "reflection"])
     }
 
+    if df.columns.duplicated().any():
+        raise ValueError("Report contains duplicate column names.")
+
+    def numeric_amounts(series, label):
+        text = series.astype(str).str.strip().str.replace(",", "", regex=False).str.replace("₹", "", regex=False)
+        text = text.str.replace(r"^\((.*)\)$", r"-\1", regex=True)
+        values = pd.to_numeric(text, errors="coerce")
+        if values.isna().any() or not values.map(math.isfinite).all():
+            raise ValueError(f"{label} values must be finite numbers.")
+        return values
+
     pnl_col = col_map.get("pnl")
-
-    # If net pnl column isn't directly named, compute from buy and sell value
-    if not pnl_col and "buy_val" in col_map and "sell_val" in col_map:
-        df["calculated_pnl"] = (
-            pd.to_numeric(df[col_map["sell_val"]], errors="coerce").fillna(0)
-            - pd.to_numeric(df[col_map["buy_val"]], errors="coerce").fillna(0)
-        )
+    if not pnl_col and col_map["buy_val"] and col_map["sell_val"]:
+        df = df.copy()
+        df["calculated_pnl"] = (numeric_amounts(df[col_map["sell_val"]], "Sell Value")
+                                - numeric_amounts(df[col_map["buy_val"]], "Buy Value"))
         pnl_col = "calculated_pnl"
-
-    if pnl_col:
-        pnl_series = pd.to_numeric(df[pnl_col], errors="coerce").fillna(0)
-    else:
-        # Fallback: take first numeric column as PnL or generate 0s
-        numeric_cols = df.select_dtypes(include=["number"]).columns
-        pnl_series = (
-            df[numeric_cols[0]]
-            if len(numeric_cols) > 0
-            else pd.Series([0] * len(df))
-        )
-
-    logger.error(f"DEBUG_DF_COLUMNS: {list(df.columns)}")
-    logger.error(f"DEBUG_COL_MAP: {col_map}")
-    logger.error(f"DEBUG_PNL_COL: {pnl_col}")
-    if len(df) > 0:
-        logger.error(f"DEBUG_FIRST_ROW: {df.iloc[0].to_dict()}")
+    if not pnl_col:
+        raise ValueError("No PnL column or Buy Value / Sell Value columns found.")
+    pnl_series = numeric_amounts(df[pnl_col], "PnL")
+    if df.empty:
+        raise ValueError("No trade rows found.")
 
     total_trades = len(df)
     net_pnl = float(pnl_series.sum())
@@ -106,7 +104,7 @@ def analyze_pnl_dataframe(df: pd.DataFrame) -> Dict[str, Any]:
         buy_series = pd.to_numeric(df[col_map["buy_val"]], errors="coerce").replace(0, pd.NA)
         pnl_pct_series = (pnl_series / buy_series * 100).fillna(0)
     else:
-        pnl_pct_series = pd.Series([0.0]*len(df))
+        pnl_pct_series = pd.Series(0.0, index=df.index)
 
     avg_profit_pct = float(pnl_pct_series[pnl_series > 0].mean()) if win_count > 0 else 0.0
     avg_loss_pct = float(pnl_pct_series[pnl_series < 0].mean()) if loss_count > 0 else 0.0
@@ -143,11 +141,9 @@ def analyze_pnl_dataframe(df: pd.DataFrame) -> Dict[str, Any]:
         except Exception as e:
             logger.warning(f"Failed to parse dates for day of week analysis: {e}")
 
-    max_win = float(pnl_series.max()) if total_trades > 0 else 0.0
-    max_loss = float(pnl_series.min()) if total_trades > 0 else 0.0
+    max_win = float(winning_trades.max()) if win_count > 0 else 0.0
+    max_loss = float(losing_trades.min()) if loss_count > 0 else 0.0
     avg_trade = float(pnl_series.mean()) if total_trades > 0 else 0.0
-
-    import math
 
     def clean_float(val):
         try:
@@ -158,10 +154,10 @@ def analyze_pnl_dataframe(df: pd.DataFrame) -> Dict[str, Any]:
         except (ValueError, TypeError):
             return 0.0
 
-    # Extract individual trades for db insertion
+    # Preserve normalized rows for deterministic analysis (no database insertion).
     parsed_trades = []
     for idx, row in df.iterrows():
-        pnl = float(row[pnl_col]) if pnl_col and pd.notna(row[pnl_col]) else 0.0
+        pnl = float(pnl_series.loc[idx])
         sym = str(row[col_map.get("symbol")]) if col_map.get("symbol") else "Unknown"
         qty_val = row[col_map.get("qty")] if col_map.get("qty") else 1
         try:
@@ -173,14 +169,17 @@ def analyze_pnl_dataframe(df: pd.DataFrame) -> Dict[str, Any]:
         
         is_ce = sym.upper().endswith("CE")
         is_pe = sym.upper().endswith("PE")
-        segment = "CE" if is_ce else ("PE" if is_pe else "Equity")
+        segment = "CE" if is_ce else ("PE" if is_pe else ("Futures" if sym.upper().endswith("FUT") else "Equity"))
         
         parsed_trades.append({
             "symbol": sym,
             "net_pnl": pnl,
             "quantity": qty,
             "date": date_str,
-            "segment": segment
+            "segment": segment,
+            "strategy": str(row[col_map["strategy"]]) if col_map["strategy"] and pd.notna(row[col_map["strategy"]]) else None,
+            "emotion": str(row[col_map["emotion"]]) if col_map["emotion"] and pd.notna(row[col_map["emotion"]]) else None,
+            "has_notes": bool(col_map["notes"] and pd.notna(row[col_map["notes"]]) and str(row[col_map["notes"]]).strip())
         })
 
     return {
@@ -205,106 +204,18 @@ def analyze_pnl_dataframe(df: pd.DataFrame) -> Dict[str, Any]:
     }
 
 
-def generate_ai_insights_from_csv(
-    stats: Dict[str, Any], raw_csv_preview: str = ""
-) -> Dict[str, Any]:
-    """Generates AI insights via Gemini API or structured intelligent engine fallback."""
-    api_key = os.getenv("GEMINI_API_KEY", "")
+def generate_ai_insights_from_csv(stats, raw_csv_preview=""):
+    """Compatibility response generated locally; external calls require explicit selection."""
+    from app.core.trade_review import build_review
+    report = build_review([{'id': f'row_{i+1}', 'pnl': r['net_pnl'], 'symbol': r['symbol'],
+                            'segment': r['segment'], 'date': None}
+                           for i, r in enumerate(stats.get('parsed_trades', []))], source='upload')
+    return legacy_insights(report)
 
-    prompt = f"""You are an elite Indian Equity & F&O Trading Coach analyzing a trader's uploaded PnL CSV report.
-Here is the extracted performance data:
-- Total Trades Executed: {stats['total_trades']}
-- Net PnL: ₹{stats['net_pnl']}
-- Win Rate: {stats['win_rate']}% ({stats['win_count']} Wins, {stats['loss_count']} Losses)
-- Average Profit: ₹{stats['avg_profit_abs']} ({stats['avg_profit_pct']}%)
-- Average Loss: ₹{stats['avg_loss_abs']} ({stats['avg_loss_pct']}%)
-- Largest Single Winning Trade: ₹{stats['max_win']}
-- Average Return Per Trade: ₹{stats['avg_trade']}
-- Net PnL from Call Options (CE): ₹{stats['ce_pnl']}
-- Net PnL from Put Options (PE): ₹{stats['pe_pnl']}
-- Highest Probability of Profit Day: {stats['best_day_win_rate']}
-- Maximum Loss Day: {stats['worst_day_pnl']}
 
-Instructions:
-1. Provide a concise, high-impact executive summary of their trading performance.
-2. Identify 2 key strengths.
-3. Identify 2 major leakages or behavioral red flags (e.g., asymmetric risk-reward where 1 bad loss wiped out multiple small wins, bias towards CE or PE causing massive losses, worst trading days).
-4. Give 3 actionable, specific recommendations tailored for Indian Equity/F&O traders.
-5. Include a clear disclaimer that this is behavioral analysis, not direct financial advice.
-
-Format the output strictly as a JSON object with keys:
-"executive_summary", "strengths" (array of strings), "leakages" (array of strings), "actionable_recommendations" (array of strings), "disclaimer"."""
-
-    if api_key:
-        try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-            payload = {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"response_mime_type": "application/json"},
-            }
-            res = requests.post(url, json=payload, timeout=15)
-            if res.status_code == 200:
-                content = res.json()["candidates"][0]["content"]["parts"][0][
-                    "text"
-                ]
-                return json.loads(content)
-        except Exception as e:
-            logger.warning(
-                f"Gemini API call failed, falling back to rule-based analysis: {e}"
-            )
-
-    # Fallback Rule-Based AI Engine
-    is_profitable = stats["net_pnl"] >= 0
-    asymmetric_loss = abs(stats["avg_loss_abs"]) > (stats["avg_profit_abs"] * 1.5)
-
-    strengths = []
-    if stats["win_rate"] >= 50:
-        strengths.append(
-            f"Strong consistency with a {stats['win_rate']}% win rate across {stats['total_trades']} trades."
-        )
-    else:
-        strengths.append(
-            "Active trade logging discipline across Equity and F&O instruments."
-        )
-
-    if is_profitable:
-        strengths.append(
-            f"Net positive return of ₹{stats['net_pnl']} maintained after accounting for exchange taxes and STT."
-        )
-    else:
-        strengths.append(
-            f"Kept maximum single win capped at ₹{stats['max_win']}, showing profit taking ability."
-        )
-
-    leakages = []
-    if asymmetric_loss:
-        leakages.append(
-            f"Asymmetric risk leakage: your largest single loss (₹{stats['max_loss']}) is significantly larger than your best win (₹{stats['max_win']}), indicating delayed stop loss execution."
-        )
-
-    if not leakages:
-        leakages.append(
-            "Over-trading risk during volatile session windows."
-        )
-
-    recommendations = [
-        "Enforce strict 1:2 Risk-to-Reward parameters on entry so winning trades cover consecutive small stop-losses.",
-        "Consolidate multiple option leg entries into single strategy orders to reduce per-order turnover tax drag.",
-        "Set a hard daily stop-loss limit (e.g. 2x average loss) to prevent revenge trading after an early loss.",
-    ]
-
-    return {
-        "executive_summary": (
-            f"Analysis of your uploaded PnL CSV reveals a net return of ₹{stats['net_pnl']} across {stats['total_trades']} trades "
-            f"with a {stats['win_rate']}% win rate, averaging ₹{stats['avg_profit_abs']} per win and ₹{stats['avg_loss_abs']} per loss. "
-            + (
-                "Your performance shows positive expectancy, but risk-reward execution can be further optimized."
-                if is_profitable
-                else "Your performance indicates tax drag and heavy loss tail risk impacting your bottom line."
-            )
-        ),
-        "strengths": strengths,
-        "leakages": leakages,
-        "actionable_recommendations": recommendations,
-        "disclaimer": "This AI analysis evaluates trading behavior, tax drag, and statistical distribution patterns. It does not constitute financial, investment, or tax filing advice.",
-    }
+def legacy_insights(report):
+    return {'executive_summary': report['summary'],
+            'strengths': [f['evidence'] for f in report['strengths']],
+            'leakages': [f['evidence'] for f in report['weaknesses']],
+            'actionable_recommendations': [p['action'] for p in report['action_plan']],
+            'disclaimer': 'Descriptive review, not a forecast or a recommendation to buy or sell.'}

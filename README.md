@@ -1,29 +1,24 @@
 # Advanced AI Trading Journal
 
-An intelligent trading journal specifically designed for Indian Equity & F&O traders. This full-stack application helps you log, analyze, and improve your trading performance with automated charge calculation, AI-powered insights, and comprehensive analytics.
+An intelligent trading journal specifically designed for Indian Equity & F&O traders. This full-stack application helps you log, analyze, and improve your trading performance with realized P&L tracking, AI-powered insights, and analytics.
+
+See [PROJECT_REVIEW.md](PROJECT_REVIEW.md) for verified behavior, fixes, validation results, and remaining limitations. Tax and brokerage calculations have been removed.
 
 ## 🚀 Features
 
 ### Core Functionality
 - **Multi-Format Trade Ingestion**: Upload Zerodha Console Tradebook CSV files
 - **Manual Trade Logging**: Log trades with strategy tags, emotion tracking, and notes
-- **Automated Charges Calculation**: Indian market-specific tax calculation including:
-  - STT (Securities Transaction Tax)
-  - GST (Goods and Services Tax)
-  - SEBI Charges
-  - Stamp Duty
-  - DP Charges
-  - Exchange Transaction Charges
-- **AI Trading Coach**: Google Gemini-powered behavioral analysis and insights
+- **Trade Coach**: Local evidence-based reviews, book-inspired practice plans, and optional Gemini/Groq/OpenRouter commentary
 - **Performance Analytics**: Win rates, PnL tracking, segment filtering
 - **Multi-Segment Support**: Equity, Futures, CE/PE Options
 
 ### Smart Features
-- **Real-time PnL Calculation**: Gross and net PnL with accurate tax deductions
+- **Realized P&L**: Matched execution profits and losses without tax or brokerage calculations
 - **Strategy Tracking**: Tag trades by strategy and analyze performance
 - **Emotion Logging**: Track emotional state during trades for psychological analysis
 - **Advanced Filtering**: Filter by segment, emotion, strategy tags
-- **Tax-Ready Outputs**: Detailed breakdown of all charges and taxes
+- **Refresh**: Clear all previous trades, filters, and analysis results to start fresh
 
 ## 🛠 Tech Stack
 
@@ -43,8 +38,8 @@ An intelligent trading journal specifically designed for Indian Equity & F&O tra
 
 ## 📋 Prerequisites
 
-- Python 3.8+
-- Node.js 18+
+- Python 3.10+
+- Node.js 20.9+
 - npm or yarn
 - (Optional) Google Gemini API key for AI features
 - (Optional) Firebase service account for cloud sync
@@ -67,7 +62,7 @@ python3 -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install dependencies
-pip install fastapi uvicorn sqlalchemy pandas firebase-admin google-generativeai python-multipart python-dotenv pydantic-settings requests pytest
+pip install -r requirements.txt
 
 # Create .env file
 cp .env.example .env
@@ -154,7 +149,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000/api
 3. Select your Zerodha Console Tradebook CSV file
 4. The system will automatically:
    - Parse the CSV
-   - Calculate all Indian market charges
+   - Calculate realized P&L
    - Group fills into legs and trades
    - Save to database
    - Display in the trade table
@@ -168,18 +163,13 @@ NEXT_PUBLIC_API_URL=http://localhost:8000/api
    - Notes
    - Planned stop loss and target
    - Trade legs (instrument, segment, side, price, quantity)
-3. The system calculates charges and PnL automatically
+3. The system calculates realized P&L without fee deductions
 
-### 3. Analyze with AI Coach
+### 3. Review trades and improve
 
-1. Upload a PnL CSV or Excel file
-2. The AI coach analyzes:
-   - Win rates and profit distribution
-   - Risk-reward patterns
-   - Behavioral insights
-   - CE vs PE performance
-   - Day-of-week patterns
-3. Get actionable recommendations
+Click **Analyze saved trades** for an assessment of all closed journal records, or upload a P&L CSV/Excel report for read-only analysis. Reviews show strengths, weaknesses, supporting numbers, and measurable practice goals. Local rules are the default; optional external reviewers are selected explicitly.
+
+See [TRADE_COACH.md](TRADE_COACH.md) for methodology, book principles, free-tier providers, privacy, and setup. See [YOUR_TRADE_REVIEW.md](YOUR_TRADE_REVIEW.md) for the assessment of the saved records at implementation time.
 
 ### 4. View and Filter Trades
 
@@ -187,9 +177,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000/api
   - Segment (Equity, CE, PE, Futures)
   - Emotion (Neutral, FOMO, Revenge, Confident, etc.)
 - View aggregated metrics:
-  - Net PnL (post-charges)
-  - Gross PnL (pre-charges)
-  - Total charges and taxes
+  - Realized P&L
   - Win rate
   - Total trades
 
@@ -204,8 +192,9 @@ Once the backend is running, visit `http://localhost:8000/docs` for interactive 
 - `POST /api/trades` - Create manual trade
 - `PATCH /api/trades/{trade_id}` - Update trade details
 - `DELETE /api/trades` - Clear all trades
-- `POST /api/ai-coach/analyze-csv` - Analyze PnL with AI
-- `GET /api/charges-config` - Get current charges configuration
+- `POST /api/ai-coach/analyze-csv` - Analyze a report (local rules by default)
+- `POST /api/ai-coach/analyze-journal` - Review closed saved records
+- `GET /api/ai-coach/providers` - List optional reviewer availability
 
 ## 🧪 Testing
 
@@ -221,7 +210,9 @@ pytest tests/
 
 ```bash
 cd frontend
-npm test
+npm run lint
+npx tsc --noEmit
+npm run build -- --webpack
 ```
 
 ## 📁 Project Structure
@@ -232,7 +223,7 @@ ai-trading-journal/
 │   ├── app/
 │   │   ├── core/              # Business logic
 │   │   │   ├── ai_analyzer.py    # AI insights
-│   │   │   ├── charges_engine.py # Tax calculation
+│   │   │   ├── pnl.py            # Realized P&L
 │   │   │   └── kite_stub.py       # Zerodha stub
 │   │   ├── database/          # Data layer
 │   │   │   ├── sqlite_db.py      # Local SQLite
@@ -313,7 +304,6 @@ This project is private and proprietary. All rights reserved.
 
 ## 🙏 Acknowledgments
 
-- Indian tax rates based on official NSE/BSE regulations
 - AI insights powered by Google Gemini
 - Built with FastAPI, Next.js, and modern web technologies
 
@@ -323,4 +313,4 @@ For issues, questions, or suggestions, please open an issue in the repository.
 
 ---
 
-**Note**: This trading journal is designed for educational and analytical purposes. Always verify tax calculations with official broker statements before using for tax filing.
+**Note**: This trading journal is designed for educational and analytical purposes. Tax and brokerage calculations are not included.

@@ -25,11 +25,6 @@ if [ -f "$PROJECT_ROOT/.frontend.pid" ]; then
     rm -f "$PROJECT_ROOT/.frontend.pid"
 fi
 
-# Fallback cleanup for processes bound to ports 8000 and 3000
-echo "Ensuring ports 8000 and 3000 are freed..."
-lsof -ti :8000 | xargs kill -9 2>/dev/null || true
-lsof -ti :3000 | xargs kill -9 2>/dev/null || true
-
 echo "============================================================"
 echo " Application stopped successfully."
 echo "============================================================"

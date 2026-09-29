@@ -16,14 +16,9 @@ def test_root_endpoint():
         assert "Trading Journal API" in response.json()["message"]
 
 
-def test_charges_config_endpoint():
+def test_charges_config_removed():
     with TestClient(app) as client:
-        response = client.get("/api/charges-config")
-        assert response.status_code == 200
-        json_data = response.json()
-        assert "configs" in json_data
-        assert "disclaimer" in json_data
-        assert "Zerodha/NSE" in json_data["disclaimer"]
+        assert client.get("/api/charges-config").status_code == 404
 
 
 def test_manual_trade_creation_and_list():
@@ -58,7 +53,8 @@ def test_manual_trade_creation_and_list():
         assert create_res.status_code == 200
         res_data = create_res.json()
         assert res_data["status"] == "success"
-        assert res_data["gross_pnl"] == 10000.0
+        assert res_data["gross_pnl"] == res_data["net_pnl"] == 10000.0
+        assert res_data["total_charges"] == 0
         trade_id = res_data["trade_id"]
 
         # Test List Trades

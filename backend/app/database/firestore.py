@@ -3,13 +3,14 @@ import logging
 from typing import Dict, Any, List, Optional
 import firebase_admin
 from firebase_admin import credentials, firestore
+from app.config import settings
 
 logger = logging.getLogger("firestore")
 
 db_client = None
 
 try:
-    cred_path = os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH")
+    cred_path = settings.FIREBASE_SERVICE_ACCOUNT_PATH
     if cred_path and os.path.exists(cred_path):
         cred = credentials.Certificate(cred_path)
         firebase_admin.initialize_app(cred)

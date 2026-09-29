@@ -13,7 +13,15 @@ echo "============================================================"
 echo "Starting Backend API on port 8000..."
 cd "$PROJECT_ROOT/backend"
 
-PYTHONPATH="$PROJECT_ROOT/backend" /opt/anaconda3/bin/python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload > "$PROJECT_ROOT/backend.log" 2>&1 &
+PYTHON_BIN="${JOURNAL_PYTHON:-$PROJECT_ROOT/backend/.venv/bin/python}"
+if [ ! -x "$PYTHON_BIN" ]; then
+    PYTHON_BIN="$(command -v python3)"
+fi
+if ! "$PYTHON_BIN" -c 'import uvicorn, fastapi, sqlalchemy, pandas, firebase_admin, pydantic_settings' >/dev/null 2>&1; then
+    echo "Backend dependencies are missing. Install backend/requirements.txt or set JOURNAL_PYTHON."
+    exit 1
+fi
+PYTHONPATH="$PROJECT_ROOT/backend" "$PYTHON_BIN" -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload > "$PROJECT_ROOT/backend.log" 2>&1 &
 BACKEND_PID=$!
 echo "$BACKEND_PID" > "$PROJECT_ROOT/.backend.pid"
 echo "Backend started (PID: $BACKEND_PID, logs: backend.log)"

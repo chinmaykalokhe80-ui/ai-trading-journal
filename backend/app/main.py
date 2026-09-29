@@ -18,7 +18,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version="1.0.0",
-    description="Backend API for Indian Equity & F&O Trading Journal with automated charge calculation, CSV ingestion, and analytics.",
+    description="Backend API for Indian Equity & F&O Trading Journal with CSV ingestion, realized P&L, and analytics.",
     lifespan=lifespan,
 )
 
