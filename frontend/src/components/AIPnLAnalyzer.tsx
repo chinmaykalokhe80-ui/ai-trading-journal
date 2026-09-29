@@ -12,6 +12,24 @@ type Metrics = {
   max_win_streak: number | null; max_loss_streak: number | null; average_r: number | null;
   largest_win: number; largest_loss: number; win_rate_interval: [number, number] | null;
 };
+type StatementContract = {
+  Symbol: string; ISIN: string; Quantity: number; 'Buy Value': number; 'Sell Value': number;
+  'Realized P&L': number; 'Realized P&L Pct.': number; 'Open Quantity': number;
+  'Open Quantity Type': string; 'Open Value': number; 'Unrealized P&L': number;
+  'Previous Closing Price': number; 'Unrealized P&L Pct.': number;
+  underlying: string; option_type: string;
+};
+type Statement = {
+  sheet: string; period: { from: string; to: string } | null;
+  reported: { realized_pnl: number | null; unrealized_pnl: number | null; charges: number | null; other_credit_debit: number | null };
+  totals: { contract_rows: number; quantity: number; buy_value: number; sell_value: number;
+    realized_pnl: number; unrealized_pnl: number; open_contract_rows: number; open_quantity: number; open_value: number };
+  reconciliation: Record<string, { reported: number | null; detail_total: number | null; difference: number | null }>;
+  breakdowns: Record<string, { name: string; contract_rows: number; realized_pnl: number; unrealized_pnl: number; buy_value: number; sell_value: number }[]>;
+  charges: { name: string; amount: number }[];
+  adjustments: { particulars: string; posting_date: string; debit: number; credit: number }[];
+  contracts: StatementContract[];
+};
 type Report = {
   source: string; summary: string; metrics: Metrics; excluded_open: number;
   strengths: Finding[]; weaknesses: Finding[];
@@ -22,6 +40,7 @@ type Report = {
   review_candidates: { id: string; symbol: string; pnl: number; question: string }[];
   principles: { id: string; title: string; author: string; url: string; principle: string }[];
   limitations: string[]; methodology: string;
+  statement?: Statement;
   llm: { status: string; provider: string; model?: string; message: string; summary?: string; review_questions?: string[]; practice_exercise?: string };
 };
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
@@ -37,6 +56,7 @@ export function AIPnLAnalyzer() {
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<Report | null>(null);
+  const [contractPage, setContractPage] = useState(0);
   const request = useRef<AbortController | null>(null);
   const busy = useRef(false);
   useEffect(() => {
@@ -58,7 +78,7 @@ export function AIPnLAnalyzer() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Could not analyze these records.');
-      if (!controller.signal.aborted) setReport(data.report);
+      if (!controller.signal.aborted) { setContractPage(0); setReport(data.report); }
     } catch (err) {
       if (!controller.signal.aborted) setError(err instanceof Error ? err.message : 'Analysis failed.');
     } finally { busy.current = false; if (!controller.signal.aborted) setAnalyzing(false); }
@@ -95,6 +115,45 @@ export function AIPnLAnalyzer() {
         ['Longest win / loss streak', `${report.metrics.max_win_streak ?? 'N/A'} / ${report.metrics.max_loss_streak ?? 'N/A'}`], ['Average R (measurable subset)', report.metrics.average_r === null ? 'Not available' : `${report.metrics.average_r.toFixed(2)}R`], ['Largest win / loss', `${money(report.metrics.largest_win)} / ${money(report.metrics.largest_loss)}`], ['Flat records', String(report.metrics.breakeven)],
       ].map(([label, value]) => <div className={card} key={label}><p className="text-xs text-slate-400">{label}</p><p className="mt-1 font-mono font-semibold text-slate-100">{value}</p></div>)}</div>
       <p className="text-xs text-slate-500">{report.metrics.win_rate_interval && `Approximate 95% win-rate interval: ${report.metrics.win_rate_interval[0]}–${report.metrics.win_rate_interval[1]}%. `}Unavailable ratios need both relevant outcomes. Missing dates or risk data are not treated as zero.</p>
+      {report.statement && <div className="space-y-3">
+        <div className={card}>
+          <h3 className="font-semibold text-slate-100">Broker statement</h3>
+          <p className="mt-1 text-xs text-slate-400">{report.statement.sheet}{report.statement.period && ` · ${report.statement.period.from} to ${report.statement.period.to}`} · contract totals, not individual trades</p>
+          <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            {[
+              ['Contract rows', report.statement.totals.contract_rows], ['Quantity', report.statement.totals.quantity],
+              ['Buy value', money(report.statement.totals.buy_value)], ['Sell value', money(report.statement.totals.sell_value)],
+              ['Reported realized P&L', money(report.statement.reported.realized_pnl)],
+              ['Reported unrealized P&L', money(report.statement.reported.unrealized_pnl)],
+              ['Reported charges', money(report.statement.reported.charges)],
+              ['Open contracts', report.statement.totals.open_contract_rows],
+            ].map(([label, value]) => <div key={label} className="rounded-lg bg-slate-900 p-3"><p className="text-slate-400">{label}</p><p className="mt-1 font-mono text-slate-100">{value}</p></div>)}
+          </div>
+          <p className="mt-3 text-xs text-slate-500">Charges are copied from the broker statement and shown separately. The review P&L does not deduct them.</p>
+        </div>
+        <div className="grid lg:grid-cols-2 gap-3">
+          {Object.entries(report.statement.breakdowns).map(([kind, groups]) => <div className={`${card} overflow-x-auto`} key={kind}>
+            <h3 className="font-semibold text-slate-200 mb-2">By {kind.replace('_', ' ')}</h3>
+            <table className="w-full text-xs"><thead><tr className="text-left text-slate-500"><th>Group</th><th className="text-right">Contracts</th><th className="text-right">Realized P&L</th></tr></thead><tbody>
+              {groups.map((group) => <tr key={group.name} className="border-t border-slate-800"><td className="py-2">{group.name}</td><td className="text-right">{group.contract_rows}</td><td className="text-right">{money(group.realized_pnl)}</td></tr>)}
+            </tbody></table>
+          </div>)}
+        </div>
+        <details className={card}><summary className="font-semibold text-slate-200 cursor-pointer">Statement reconciliation and reported charges</summary>
+          <div className="mt-3 grid md:grid-cols-2 gap-4 text-xs">
+            <div><h4 className="font-semibold mb-2">Summary versus detail</h4>{Object.entries(report.statement.reconciliation).map(([name, check]) =>
+              <p key={name} className="py-1 text-slate-300">{name.replaceAll('_', ' ')}: {money(check.reported)} reported · {money(check.detail_total)} from detail{check.difference !== null && ` · difference ${money(check.difference)}`}</p>)}</div>
+            {report.statement.charges.length > 0 && <div><h4 className="font-semibold mb-2">Broker reported charges</h4>{report.statement.charges.map((charge) => <p key={charge.name} className="py-1 text-slate-300">{charge.name}: {money(charge.amount)}</p>)}</div>}
+            {report.statement.adjustments.length > 0 && <div><h4 className="font-semibold mb-2">Other debits and credits</h4>{report.statement.adjustments.map((item, index) => <p key={index} className="py-1 text-slate-300">{item.posting_date} {item.particulars}: debit {money(item.debit)}, credit {money(item.credit)}</p>)}</div>}
+          </div>
+        </details>
+        <details className={card}><summary className="font-semibold text-slate-200 cursor-pointer">All contract rows ({report.statement.contracts.length})</summary>
+          <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[1300px] text-xs"><thead><tr className="text-left text-slate-500"><th>Symbol</th><th>ISIN</th><th>Type</th><th className="text-right">Qty</th><th className="text-right">Buy</th><th className="text-right">Sell</th><th className="text-right">Realized</th><th className="text-right">Return</th><th className="text-right">Previous close</th><th className="text-right">Open qty</th><th>Open type</th><th className="text-right">Open value</th><th className="text-right">Unrealized</th><th className="text-right">Unrealized %</th></tr></thead><tbody>
+            {report.statement.contracts.slice(contractPage * 20, (contractPage + 1) * 20).map((item, index) => <tr key={`${item.Symbol}-${contractPage * 20 + index}`} className="border-t border-slate-800 text-slate-300"><td className="py-2 pr-3">{item.Symbol}</td><td>{item.ISIN || '—'}</td><td>{item.option_type}</td><td className="text-right">{item.Quantity}</td><td className="text-right">{money(item['Buy Value'])}</td><td className="text-right">{money(item['Sell Value'])}</td><td className="text-right">{money(item['Realized P&L'])}</td><td className="text-right">{item['Realized P&L Pct.'].toFixed(2)}%</td><td className="text-right">{money(item['Previous Closing Price'])}</td><td className="text-right">{item['Open Quantity']}</td><td>{item['Open Quantity Type'] || '—'}</td><td className="text-right">{money(item['Open Value'])}</td><td className="text-right">{money(item['Unrealized P&L'])}</td><td className="text-right">{item['Unrealized P&L Pct.'].toFixed(2)}%</td></tr>)}
+          </tbody></table></div>
+          {report.statement.contracts.length > 20 && <div className="mt-3 flex items-center gap-3 text-xs"><button className="text-cyan-300 disabled:opacity-40" disabled={contractPage === 0} onClick={() => setContractPage((page) => page - 1)}>Previous</button><span>Page {contractPage + 1} of {Math.ceil(report.statement.contracts.length / 20)}</span><button className="text-cyan-300 disabled:opacity-40" disabled={(contractPage + 1) * 20 >= report.statement.contracts.length} onClick={() => setContractPage((page) => page + 1)}>Next</button></div>}
+        </details>
+      </div>}
       {report.equity_curve.length > 1 && <div className={card}><h3 className="font-semibold text-slate-200">Cumulative realized P&L by day</h3><div className="mt-3 h-56" role="img" aria-label="Daily cumulative realized P&L, not account equity"><ResponsiveContainer width="100%" height="100%"><AreaChart data={report.equity_curve}><CartesianGrid stroke="#1e293b" /><XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} /><YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} /><Tooltip contentStyle={{ background: '#0f172a', borderColor: '#334155' }} /><Area type="linear" dataKey="pnl" stroke="#22d3ee" fill="#0891b2" fillOpacity={0.18} /></AreaChart></ResponsiveContainer></div></div>}
       <div className="grid md:grid-cols-2 gap-4"><div className="space-y-3"><h3 className="text-base font-bold text-emerald-300">Strengths supported by the sample</h3>{report.strengths.length ? report.strengths.map(finding) : <p className={card}>Not enough evidence to identify a repeatable strength yet.</p>}</div><div className="space-y-3"><h3 className="text-base font-bold text-amber-300">Weaknesses & review priorities</h3>{report.weaknesses.length ? report.weaknesses.map(finding) : <p className={card}>No rule-based concern triggered. This does not establish that the process is sound.</p>}</div></div>
       <div className="space-y-3"><h3 className="text-base font-bold text-cyan-300">Your practice plan</h3>{report.action_plan.map((p) => <article className={card} key={p.priority}><h4 className="font-semibold text-slate-100">{p.priority}. {p.focus}</h4><p className="mt-2 text-slate-300">{p.action}</p><p className="mt-2 text-cyan-300">Track progress: {p.measure}</p></article>)}</div>

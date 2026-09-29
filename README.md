@@ -92,6 +92,8 @@ cp .env.local.example .env.local
 ```
 
 This will:
+- Create the backend virtual environment if needed and install missing Python dependencies
+- Install frontend packages if `node_modules` is missing
 - Start the FastAPI backend on `http://localhost:8000`
 - Start the Next.js frontend on `http://localhost:3000`
 
@@ -125,10 +127,6 @@ SQLITE_DB_PATH=trading_journal.db
 
 # Firebase (Optional - for cloud sync)
 FIREBASE_SERVICE_ACCOUNT_PATH=path/to/service-account.json
-
-# Zerodha API (Optional - for future API integration)
-KITE_API_KEY=your_api_key
-KITE_API_SECRET=your_api_secret
 
 # Google Gemini AI (Optional - for AI insights)
 GEMINI_API_KEY=your_gemini_api_key
@@ -168,6 +166,8 @@ NEXT_PUBLIC_API_URL=http://localhost:8000/api
 ### 3. Review trades and improve
 
 Click **Analyze saved trades** for an assessment of all closed journal records, or upload a P&L CSV/Excel report for read-only analysis. Reviews show strengths, weaknesses, supporting numbers, and measurable practice goals. Local rules are the default; optional external reviewers are selected explicitly.
+
+Zerodha-style F&O P&L workbooks are supported directly, including exports with an incorrect worksheet dimension. The report shows contract-level realized P&L, buy/sell values, open positions, unrealized P&L, underlying and CE/PE breakdowns, broker-reported charges, other debits and credits, and checks against the statement summary. Contract rows can combine multiple executions, and a statement period does not supply trade dates; the review does not infer daily performance from it. Upload analysis does not add records to the journal.
 
 See [TRADE_COACH.md](TRADE_COACH.md) for methodology, book principles, free-tier providers, privacy, and setup. See [YOUR_TRADE_REVIEW.md](YOUR_TRADE_REVIEW.md) for the assessment of the saved records at implementation time.
 
@@ -223,8 +223,7 @@ ai-trading-journal/
 │   ├── app/
 │   │   ├── core/              # Business logic
 │   │   │   ├── ai_analyzer.py    # AI insights
-│   │   │   ├── pnl.py            # Realized P&L
-│   │   │   └── kite_stub.py       # Zerodha stub
+│   │   │   └── pnl.py            # Realized P&L
 │   │   ├── database/          # Data layer
 │   │   │   ├── sqlite_db.py      # Local SQLite
 │   │   │   └── firestore.py      # Firebase sync
@@ -262,7 +261,6 @@ ai-trading-journal/
 ## 🚧 Roadmap
 
 ### Phase 1: Multi-Broker Integration
-- [ ] Zerodha API integration
 - [ ] Upstox API integration
 - [ ] Angel One API integration
 - [ ] Unified broker dashboard

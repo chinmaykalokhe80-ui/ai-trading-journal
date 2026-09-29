@@ -9,9 +9,6 @@ class Settings(BaseSettings):
     FIREBASE_SERVICE_ACCOUNT_PATH: str = os.getenv(
         "FIREBASE_SERVICE_ACCOUNT_PATH", ""
     )
-    KITE_API_KEY: str = os.getenv("KITE_API_KEY", "")
-    KITE_API_SECRET: str = os.getenv("KITE_API_SECRET", "")
-
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-3.8-flash"
     GROQ_API_KEY: str = ""

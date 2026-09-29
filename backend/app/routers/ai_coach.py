@@ -9,6 +9,7 @@ from app.core.ai_analyzer import legacy_insights
 from app.core.trade_review import build_review
 from app.core.review_inputs import uploaded_rows, journal_rows
 from app.core.llm_review import Provider, providers, add_commentary
+from app.core.broker_pnl_workbook import parse_broker_pnl_workbook
 
 router = APIRouter(prefix='/api/ai-coach', tags=['AI Coach'])
 
@@ -46,11 +47,29 @@ async def analyze_pnl_csv_endpoint(file: UploadFile = File(...), provider: Provi
 
     def analyze():
         try:
-            df = pd.read_csv(io.StringIO(content.decode('utf-8-sig'))) if filename.endswith('.csv') else pd.read_excel(io.BytesIO(content))
+            statement = None
+            if filename.endswith('.xlsx'):
+                parsed = parse_broker_pnl_workbook(content)
+                if parsed is not None:
+                    df, statement = parsed
+                else:
+                    df = pd.read_excel(io.BytesIO(content))
+            elif filename.endswith('.csv'):
+                df = pd.read_csv(io.StringIO(content.decode('utf-8-sig')))
+            else:
+                df = pd.read_excel(io.BytesIO(content))
             if df.empty:
                 raise ValueError('The report contains no trade rows.')
             rows, stats = uploaded_rows(df)
             report = build_review(rows, source='upload')
+            if statement is not None:
+                report['statement'] = statement
+                report['summary'] = report['summary'].replace(
+                    f'{len(rows)} closed records / report rows', f'{len(rows)} contract rows')
+                report['limitations'].append(
+                    'This broker statement aggregates executions by contract. Contract rows are not individual trades, and the period range does not provide trade dates or execution order.')
+                report['limitations'].append(
+                    'Charges and adjustments are broker-reported separately; they are not deducted from the realized P&L used in this review.')
         except (ValueError, KeyError, TypeError, OverflowError, ImportError) as exc:
             raise HTTPException(status_code=422, detail=f'Could not analyze report: {exc}') from exc
         add_commentary(report, provider)

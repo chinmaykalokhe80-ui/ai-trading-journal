@@ -4,7 +4,7 @@
 
 ## Project summary
 
-This is a local trading journal for Indian equity and derivatives. The Next.js 16 / React 19 dashboard supports manual multi-leg entry, Zerodha CSV imports, trade notes, strategy/emotion tags, filtering, and P&L summaries. FastAPI handles parsing, charge estimates, and CRUD; SQLAlchemy/SQLite is the primary working database. Optional Firebase writes mirror some actions. The P&L report analyzer computes statistics and calls Gemini when configured, otherwise generating rule-based commentary. Kite integration is a stub, not a working broker connection.
+This is a local trading journal for Indian equity and derivatives. The Next.js 16 / React 19 dashboard supports manual multi-leg entry, Zerodha CSV imports, trade notes, strategy/emotion tags, filtering, and P&L summaries. FastAPI handles parsing, charge estimates, and CRUD; SQLAlchemy/SQLite is the primary working database. Optional Firebase writes mirror some actions. The P&L report analyzer computes statistics and calls Gemini when configured, otherwise generating rule-based commentary.
 
 The application is a useful prototype for a personal journal. Its strongest features are the small, understandable architecture and the combination of execution records with reflection notes. Accounting correctness and import provenance should take priority over additional AI or broker integrations.
 

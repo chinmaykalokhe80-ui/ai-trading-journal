@@ -1,6 +1,6 @@
 # Trade coach: evidence, principles, and optional LLMs
 
-The journal now computes the assessment locally by default. Choose **Analyze saved trades** to review all closed journal records, or **Analyze report** to review a CSV/Excel report without importing it. The dashboard filters do not restrict the saved-journal review. Refresh still clears the journal and resets the review. Tax and brokerage calculations remain removed.
+The journal now computes the assessment locally by default. Choose **Analyze saved trades** to review all closed journal records, or **Analyze report** to review a CSV/Excel report without importing it. The dashboard filters do not restrict the saved-journal review. Refresh still clears the journal and resets the review. Tax and brokerage calculations remain removed. Broker-reported charges in supported F&O statements are displayed separately from realized P&L.
 
 ## What the report covers
 
