@@ -7,6 +7,7 @@ import { TradeUploadModal } from '@/components/TradeUploadModal';
 import { ManualTradeModal } from '@/components/ManualTradeModal';
 import { AIPnLAnalyzer } from '@/components/AIPnLAnalyzer';
 import { formatSignedPnl, pnlTextClass } from '@/lib/pnlDisplay';
+import { AuthGate } from '@/components/AuthGate';
 import {
   TrendingUp,
   TrendingDown,
@@ -17,6 +18,10 @@ import {
 } from 'lucide-react';
 
 export default function DashboardPage() {
+  return process.env.NEXT_PUBLIC_AUTH_REQUIRED === 'true' ? <AuthGate><Dashboard /></AuthGate> : <Dashboard />;
+}
+
+function Dashboard() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

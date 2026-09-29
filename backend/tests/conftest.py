@@ -4,6 +4,9 @@ import tempfile
 
 _test_dir = tempfile.TemporaryDirectory(prefix="journal-tests-")
 os.environ["SQLITE_DB_PATH"] = os.path.join(_test_dir.name, "tests.db")
+os.environ.pop("DATABASE_URL", None)
+os.environ.pop("VERCEL", None)
+os.environ["ENVIRONMENT"] = "development"
 os.environ["GEMINI_API_KEY"] = ""
 os.environ["FIREBASE_SERVICE_ACCOUNT_PATH"] = ""
 os.environ.pop("FIRESTORE_EMULATOR_HOST", None)

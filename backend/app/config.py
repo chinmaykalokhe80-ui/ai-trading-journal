@@ -6,6 +6,9 @@ class Settings(BaseSettings):
     APP_NAME: str = "Indian Equity & F&O Trading Journal API"
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     SQLITE_DB_PATH: str = os.getenv("SQLITE_DB_PATH", "trading_journal.db")
+    DATABASE_URL: str = ""
+    FIREBASE_SERVICE_ACCOUNT_JSON: str = ""
+    ALLOWED_FIREBASE_UIDS: str = ""
     FIREBASE_SERVICE_ACCOUNT_PATH: str = os.getenv(
         "FIREBASE_SERVICE_ACCOUNT_PATH", ""
     )

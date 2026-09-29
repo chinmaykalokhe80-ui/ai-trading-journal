@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "functions": {
+    "main.py": {
+      "excludeFiles": "{tests/**,*.db,*.sqlite,*.sqlite3,.venv/**}"
+    }
+  }
+}

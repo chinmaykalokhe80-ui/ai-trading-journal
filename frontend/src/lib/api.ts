@@ -1,3 +1,5 @@
+import { authFetch } from '@/lib/authFetch';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
 export interface Leg {
@@ -36,14 +38,14 @@ export async function fetchTrades(filters?: { segment?: string; emotion_tag?: st
   if (filters?.emotion_tag) params.append('emotion_tag', filters.emotion_tag);
   if (filters?.strategy_tag) params.append('strategy_tag', filters.strategy_tag);
 
-  const res = await fetch(`${API_BASE_URL}/trades?${params.toString()}`);
+  const res = await authFetch(`${API_BASE_URL}/trades?${params.toString()}`);
   if (!res.ok) throw new Error('Failed to fetch trades');
   const data = await res.json();
   return data.trades || [];
 }
 
 export async function updateTrade(tradeId: string, payload: Partial<Trade>): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/trades/${tradeId}`, {
+  const res = await authFetch(`${API_BASE_URL}/trades/${tradeId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -52,10 +54,11 @@ export async function updateTrade(tradeId: string, payload: Partial<Trade>): Pro
 }
 
 export async function uploadTradebookCSV(file: File): Promise<{ trades_ingested: number }> {
+  if (file.size > 4 * 1024 * 1024) throw new Error('Please upload a file smaller than 4 MB.');
   const formData = new FormData();
   formData.append('file', file);
 
-  const res = await fetch(`${API_BASE_URL}/ingest/csv`, {
+  const res = await authFetch(`${API_BASE_URL}/ingest/csv`, {
     method: 'POST',
     body: formData,
   });
@@ -81,7 +84,7 @@ export async function createManualTrade(tradeData: {
     is_delivery?: boolean;
   }[];
 }): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/trades`, {
+  const res = await authFetch(`${API_BASE_URL}/trades`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(tradeData),
@@ -90,7 +93,7 @@ export async function createManualTrade(tradeData: {
 }
 
 export async function clearTrades(): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/trades`, {
+  const res = await authFetch(`${API_BASE_URL}/trades`, {
     method: 'DELETE',
   });
   if (!res.ok) throw new Error('Failed to clear trades');

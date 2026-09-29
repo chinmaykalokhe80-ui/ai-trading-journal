@@ -10,6 +10,7 @@ from app.database.sqlite_db import (
     FillModel,
 )
 from app.database.firestore import save_trade_to_firestore
+from app.auth import get_user_id
 from app.parsers.zerodha import ZerodhaConsoleParser
 
 router = APIRouter(prefix="/api/ingest", tags=["Ingestion"])
@@ -18,7 +19,7 @@ router = APIRouter(prefix="/api/ingest", tags=["Ingestion"])
 @router.post("/csv")
 async def ingest_csv(
     file: UploadFile = File(...),
-    user_id: str = "single_user",
+    user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db),
 ):
     """Uploads and ingests Zerodha Console Tradebook CSV, parses trades/legs/fills,
@@ -30,7 +31,9 @@ async def ingest_csv(
             status_code=400, detail="Only CSV files are supported."
         )
 
-    content = await file.read()
+    content = await file.read(4 * 1024 * 1024 + 1)
+    if len(content) > 4 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Please upload a file smaller than 4 MB.")
     parser = ZerodhaConsoleParser()
 
     try:

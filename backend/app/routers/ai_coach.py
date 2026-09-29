@@ -5,6 +5,7 @@ from starlette.concurrency import run_in_threadpool
 import pandas as pd
 import io
 from app.database.sqlite_db import get_db, TradeModel
+from app.auth import get_user_id
 from app.core.ai_analyzer import legacy_insights
 from app.core.trade_review import build_review
 from app.core.review_inputs import uploaded_rows, journal_rows
@@ -24,7 +25,7 @@ def list_providers():
 
 
 @router.post('/analyze-journal')
-def analyze_journal(data: ReviewRequest, user_id: str = 'single_user', db: Session = Depends(get_db)):
+def analyze_journal(data: ReviewRequest, user_id: str = Depends(get_user_id), db: Session = Depends(get_db)):
     trades = db.query(TradeModel).options(selectinload(TradeModel.legs)).filter(TradeModel.user_id == user_id).all()
     rows, excluded = journal_rows(trades)
     try:
@@ -41,9 +42,9 @@ async def analyze_pnl_csv_endpoint(file: UploadFile = File(...), provider: Provi
     filename = (file.filename or '').lower()
     if not filename.endswith(('.csv', '.xlsx', '.xls')):
         raise HTTPException(status_code=400, detail='Please upload a PnL CSV or Excel report.')
-    content = await file.read(10 * 1024 * 1024 + 1)
-    if len(content) > 10 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail='Please upload a file smaller than 10 MB.')
+    content = await file.read(4 * 1024 * 1024 + 1)
+    if len(content) > 4 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail='Please upload a file smaller than 4 MB.')
 
     def analyze():
         try:

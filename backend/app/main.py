@@ -1,8 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.config import settings
+from app.auth import get_user_id, validate_production_config, production_mode
 from app.database.sqlite_db import init_db
 from app.routers import ingest, trades, ai_coach
 
@@ -10,6 +11,7 @@ from app.routers import ingest, trades, ai_coach
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup logic
+    validate_production_config()
     init_db()
     yield
     # Shutdown logic
@@ -25,15 +27,15 @@ app = FastAPI(
 # Enable CORS for Next.js frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=[] if production_mode() else ["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(ingest.router)
-app.include_router(trades.router)
-app.include_router(ai_coach.router)
+app.include_router(ingest.router, dependencies=[Depends(get_user_id)])
+app.include_router(trades.router, dependencies=[Depends(get_user_id)])
+app.include_router(ai_coach.router, dependencies=[Depends(get_user_id)])
 
 
 @app.get("/")

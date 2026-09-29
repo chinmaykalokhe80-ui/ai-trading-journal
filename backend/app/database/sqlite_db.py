@@ -16,11 +16,23 @@ from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
 from app.config import settings
 
-DB_PATH = settings.SQLITE_DB_PATH
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
+def database_url() -> str:
+    url = settings.DATABASE_URL
+    if url:
+        if url.startswith("postgres://"):
+            return "postgresql+psycopg://" + url[len("postgres://"):]
+        if url.startswith("postgresql://"):
+            return "postgresql+psycopg://" + url[len("postgresql://"):]
+        return url
+    return f"sqlite:///{settings.SQLITE_DB_PATH}"
+
+
+SQLALCHEMY_DATABASE_URL = database_url()
 
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False} if SQLALCHEMY_DATABASE_URL.startswith("sqlite:") else {},
+    pool_pre_ping=True,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()

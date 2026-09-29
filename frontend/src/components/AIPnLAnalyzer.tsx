@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { BrainCircuit, Loader2, Sparkles } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { formatSignedPercent, formatSignedPnl, pnlRowClass, pnlTextClass } from '@/lib/pnlDisplay';
+import { authFetch } from '@/lib/authFetch';
 
 type Provider = { id: string; name: string; configured: boolean; model: string | null; url: string | null; note: string };
 type Finding = { id: string; title: string; evidence: string; action: string; success_measure: string; principle: string; confidence: string };
@@ -63,18 +64,19 @@ export function AIPnLAnalyzer() {
   const busy = useRef(false);
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${API}/ai-coach/providers`, { signal: controller.signal }).then((r) => r.ok ? r.json() : null)
+    authFetch(`${API}/ai-coach/providers`, { signal: controller.signal }).then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d && !controller.signal.aborted) setProviders(d.providers); }).catch(() => {});
     return () => { controller.abort(); request.current?.abort(); };
   }, []);
   const analyze = async (source: 'journal' | 'upload') => {
     if (busy.current) return;
     if (source === 'upload' && !file) { setError('Select a P&L report first.'); return; }
+    if (source === 'upload' && file && file.size > 4 * 1024 * 1024) { setError('Please upload a file smaller than 4 MB.'); return; }
     busy.current = true; setAnalyzing(true); setError(null); setReport(null);
     const controller = new AbortController(); request.current = controller;
     try {
       const form = new FormData(); if (file) form.append('file', file);
-      const response = await fetch(source === 'upload' ? `${API}/ai-coach/analyze-csv?provider=${encodeURIComponent(provider)}` : `${API}/ai-coach/analyze-journal`, {
+      const response = await authFetch(source === 'upload' ? `${API}/ai-coach/analyze-csv?provider=${encodeURIComponent(provider)}` : `${API}/ai-coach/analyze-journal`, {
         method: 'POST', signal: controller.signal,
         ...(source === 'upload' ? { body: form } : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider }) }),
       });
@@ -131,7 +133,7 @@ export function AIPnLAnalyzer() {
     <p className="text-xs text-slate-400">{selected?.note} {provider !== 'rules' && 'Pressing Analyze sends computed aggregate metrics to this provider. Raw files, notes, symbols and account identifiers are excluded. Free-tier access depends on your account; paid accounts may incur charges.'}</p>
     <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-800 p-3">
       <label className="text-sm text-slate-300">Or analyze a report<input type="file" accept=".csv,.xlsx,.xls" disabled={analyzing} onChange={(e) => { setFile(e.target.files?.[0] || null); setError(null); }} className="block mt-2 max-w-full text-xs text-slate-400" /></label>
-      <button disabled={analyzing || !file} onClick={() => analyze('upload')} className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-200 disabled:opacity-40">Analyze report</button><span className="text-xs text-slate-500">Read-only · up to 10 MB · no trades added</span>
+      <button disabled={analyzing || !file} onClick={() => analyze('upload')} className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-200 disabled:opacity-40">Analyze report</button><span className="text-xs text-slate-500">Read-only · up to 4 MB · no trades added</span>
     </div>
     <details className="text-xs text-slate-400"><summary className="text-cyan-400 cursor-pointer">Optional free-tier LLM choices</summary><div className="mt-3 grid md:grid-cols-3 gap-3">{providers.filter((p) => p.id !== 'rules').map((p) => <div className={card} key={p.id}><a href={p.url!} target="_blank" rel="noreferrer" className="text-cyan-300 underline">{p.name}</a><p className="mt-2">{p.note}</p><p className="mt-2">{p.configured ? 'Configured' : 'Requires backend API-key setup'}</p></div>)}</div></details>
     {error && <p role="alert" className="text-sm text-rose-300 border border-rose-800 rounded-lg p-3">{error}</p>}

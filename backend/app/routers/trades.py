@@ -8,6 +8,7 @@ import uuid
 from app.database.sqlite_db import get_db, TradeModel, LegModel
 from app.database.firestore import save_trade_to_firestore, delete_all_trades_from_firestore
 from app.core.pnl import calculate_realized_pnl
+from app.auth import get_user_id
 
 router = APIRouter(prefix="/api", tags=["Trades"])
 
@@ -47,7 +48,7 @@ def list_trades(
     segment: Optional[str] = None,
     emotion_tag: Optional[str] = None,
     strategy_tag: Optional[str] = None,
-    user_id: str = "single_user",
+    user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db),
 ):
     query = db.query(TradeModel).filter(TradeModel.user_id == user_id)
@@ -110,7 +111,7 @@ def list_trades(
 def update_trade(
     trade_id: str,
     update_data: TradeUpdateSchema,
-    user_id: str = "single_user",
+    user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db),
 ):
     trade = (
@@ -154,7 +155,7 @@ def update_trade(
 @router.post("/trades")
 def create_manual_trade(
     data: ManualTradeCreate,
-    user_id: str = "single_user",
+    user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db),
 ):
     if not data.legs:
@@ -220,7 +221,7 @@ def create_manual_trade(
 
 @router.delete("/trades")
 def clear_all_trades(
-    user_id: str = "single_user",
+    user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db),
 ):
     """Deletes all trades for the given user from both SQLite and Firestore."""
