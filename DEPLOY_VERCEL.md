@@ -1,36 +1,24 @@
 # Deploy Trading Journal on Vercel
 
-This repository contains two applications. Create **two Vercel projects** from the same GitHub repository: one with Root Directory `backend`, and one with Root Directory `frontend`. Deploy the backend first, then use its production URL for the frontend. Keep their deployment regions close to the database region.
+This repository uses one Vercel **Services** project for the Next.js frontend and FastAPI backend. Import the repository with the project Root Directory left at the repository root and Framework Preset set to **Services**. The root `vercel.json` builds both services and routes `/api/*` to FastAPI and all other paths to Next.js on the same domain.
 
-## 1. Create the database and Firebase project
+## 1. Prepare storage and authentication
 
-1. Create a PostgreSQL database through a Vercel Marketplace integration such as Neon, or use another hosted PostgreSQL provider. Copy its connection URI. The backend uses PostgreSQL for journal persistence; local SQLite files are not deployed or migrated automatically.
-2. Create a Firebase project, enable **Authentication → Email/Password**, and create the account that should access this journal. Copy that account's Firebase UID from the Users screen.
-3. In Firebase project settings, create a service account key. Copy the entire JSON as a single Vercel environment variable. Keep it out of Git and local logs.
-4. Copy the Firebase web app config values: `apiKey`, `authDomain`, `projectId`, and `appId`. Firebase web config is public; the service account JSON is secret.
+1. Create a hosted PostgreSQL database through a Vercel Marketplace integration such as Neon, or use an existing hosted PostgreSQL provider. Copy its connection URI. Local SQLite data is not migrated automatically.
+2. Create a Firebase project, enable **Authentication → Email/Password**, and create the account that should access the journal. Copy that account's Firebase UID from Authentication → Users.
+3. In Firebase project settings, create a service account key. Copy the entire JSON for the backend. Keep it out of Git and local logs.
+4. Register a Firebase web app and copy its `apiKey`, `authDomain`, `projectId`, and `appId`. These web config values are public; the service account JSON is secret.
 
-## 2. Deploy the backend project
+## 2. Configure the Vercel project
 
-Import the repository in Vercel with Root Directory **`backend`** and the FastAPI/Python framework preset. The `main.py` ASGI entrypoint, `.python-version`, `requirements.txt`, and `vercel.json` are already included. Add these environment variables for Production (and Preview if you want previews):
+In Project Settings → Environment Variables, add the following variables to Production. Add them to Preview too if preview deployments should work.
 
 | Name | Value |
 | --- | --- |
 | `ENVIRONMENT` | `production` |
-| `DATABASE_URL` | PostgreSQL connection URI, usually from your integration. SQLAlchemy accepts `postgres://` and `postgresql://`; this app uses psycopg. |
-| `FIREBASE_SERVICE_ACCOUNT_JSON` | The full Firebase service account JSON. |
-| `ALLOWED_FIREBASE_UIDS` | The Firebase UID(s) allowed into the journal, comma separated. |
-
-Optional reviewer keys are in `backend/.env.example`. The local rules reviewer works without them. Do not set `SQLITE_DB_PATH` for Vercel.
-
-Deploy and check `https://<backend-domain>/` returns the API status. `https://<backend-domain>/api/trades` should return **401** without a Firebase token. The backend refuses to start on Vercel when persistent storage or Firebase access control is missing.
-
-## 3. Deploy the frontend project
-
-Import the same repository again with Root Directory **`frontend`** and the Next.js framework preset. Add these environment variables:
-
-| Name | Value |
-| --- | --- |
-| `API_UPSTREAM_URL` | `https://<backend-domain>` (origin only, no `/api`) |
+| `DATABASE_URL` | Hosted PostgreSQL connection URI. `postgres://` and `postgresql://` are accepted. |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Full Firebase service account JSON. |
+| `ALLOWED_FIREBASE_UIDS` | Allowed Firebase UID(s), comma separated. |
 | `NEXT_PUBLIC_API_URL` | `/api` |
 | `NEXT_PUBLIC_AUTH_REQUIRED` | `true` |
 | `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase web config `apiKey` |
@@ -38,14 +26,16 @@ Import the same repository again with Root Directory **`frontend`** and the Next
 | `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase web config `projectId` |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase web config `appId` |
 
-The frontend proxies `/api/*` requests to the backend. Set Firebase Authentication → Settings → Authorized domains to include your frontend production domain. Redeploy the frontend after changing `NEXT_PUBLIC_*` variables, since Next.js embeds them at build time.
+The backend refuses to start without persistent storage and Firebase access control. Do not set `SQLITE_DB_PATH` on Vercel. `API_UPSTREAM_URL` is only for a separate frontend project; leave it unset in the Services project because the root routing table handles `/api/*`.
 
-## 4. Verify
+In Firebase Authentication → Settings → Authorized domains, add the Vercel production domain. Redeploy after changing environment variables; Next.js embeds `NEXT_PUBLIC_*` values at build time.
 
-Open the frontend production URL in a private window. The sign-in page should appear. Sign in with the Firebase account you allowed, add one manual trade, refresh the page, and confirm the trade remains. Sign out and confirm the journal is hidden. Try an account whose UID is not allowlisted; API requests should return 403. Export or back up the hosted PostgreSQL database according to your provider's policy.
+## 3. Verify
+
+Open the Vercel production URL in a private window and sign in. `/api/trades` should return **401** without a Firebase token. Add one manual trade, refresh, and confirm it persists. Sign out and confirm the journal is hidden. An account whose UID is not allowlisted should receive **403** from API requests. Back up the hosted PostgreSQL database according to the provider's policy.
 
 ## Limits and data migration
 
-Vercel Functions have a **4.5 MB request and response payload limit**. The app caps uploaded CSV and Excel files at 4 MB to leave room for multipart overhead. A report producing more than 4.5 MB of JSON may still exceed the response limit; reduce the report size or add external object storage for larger reports. The app's local SQLite journal is not copied to PostgreSQL; migrate existing data separately before relying on the production journal.
+Vercel Functions have a **4.5 MB request and response payload limit**. The app caps uploaded CSV and Excel files at 4 MB to leave room for multipart overhead. A large report response may still exceed the limit. The local SQLite journal is not copied to PostgreSQL; migrate existing data separately before relying on the production journal.
 
-The current schema is created automatically at startup. Before changing columns in a live deployment, add a migration instead of relying on `create_all`, which does not alter existing tables. Store service account credentials only in Vercel environment variables, never in the frontend or repository.
+The current schema is created automatically at startup. Before changing columns in a live deployment, add a migration because `create_all` does not alter existing tables. Keep service account credentials only in Vercel environment variables.
